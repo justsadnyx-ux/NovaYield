@@ -1,9 +1,13 @@
 --[[
     ============================================================
-    NovaYield v1.0.0
+    NovaYield v1.1.0
     ============================================================
     
     A standalone Roblox command script with a custom UI.
+    Inspired by Infinite Yield (https://github.com/EdgeIY/infiniteyield)
+    Original IY by: Edge // Zwolf // Moon // Sleaze // Toon // Peyton // ATP
+    Licensed under MIT
+    
     Theme: Midnight Aurora
     ============================================================
 ]]
@@ -18,7 +22,7 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 
 local NOVA = {
     Name = "NovaYield",
-    Version = "1.0.0",
+    Version = "1.1.0",
     Prefix = ";",
     
     Colors = {
@@ -737,7 +741,7 @@ addcmd("version", {}, function(args, speaker)
 end)
 
 addcmd("credits", {}, function(args, speaker)
-    notify("Credits", "NovaYield by justsadnyx-ux\nTheme: Midnight Aurora", 4)
+    notify("Credits", "NovaYield by justsadnyx-ux\nInspired by Infinite Yield\nOriginal IY by: Edge // Zwolf // Moon // Toon // Peyton // ATP", 5)
 end)
 
 addcmd("setprefix", {}, function(args, speaker)
@@ -786,6 +790,23 @@ addcmd("guiscale", {}, function(args, speaker)
     if scale >= 0.4 and scale <= 2 then
         Scale.Scale = scale
         notify("GuiScale", "Set to " .. scale)
+    end
+end)
+
+addcmd("novaupdate", {"update"}, function(args, speaker)
+    notify("NovaYield", "Checking for updates...", 2)
+    local success, result = pcall(function()
+        local versionJson = game:HttpGet("https://raw.githubusercontent.com/justsadnyx-ux/NovaYield/master/version.json")
+        return HttpService:JSONDecode(versionJson)
+    end)
+    if success and result and result.Version then
+        if result.Version ~= NOVA.Version then
+            notify("NovaYield", "Update available! Current: " .. NOVA.Version .. " Latest: " .. result.Version, 5)
+        else
+            notify("NovaYield", "You are on the latest version!", 3)
+        end
+    else
+        notify("NovaYield", "Failed to check for updates.", 3)
     end
 end)
 
@@ -849,7 +870,6 @@ local function updateCommandList(filter)
         end
     end
     
-    -- Update canvas size
     local visibleCount = 0
     for _, child in pairs(CMDsF:GetChildren()) do
         if child:IsA("TextButton") and child.Visible then
@@ -916,7 +936,7 @@ local function checkForUpdate()
     
     if success and result and result.Version then
         if result.Version ~= NOVA.Version then
-            notify("NovaYield", "Update available! Current: " .. NOVA.Version .. " Latest: " .. result.Version .. "\nRe-execute the script to update.", 6)
+            notify("NovaYield", "Update available! Current: " .. NOVA.Version .. " Latest: " .. result.Version .. "\nRun " .. prefix .. "novaupdate to update.", 6)
         end
     end
 end
