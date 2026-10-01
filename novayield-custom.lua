@@ -13485,8 +13485,6 @@ end)
     Checks for updates from the original Infinite Yield source.
     If a new version is found, notifies the user with options to
     update now or later.
-    
-    This is a standalone module that can be added to the NovaYield build.
     ============================================================
 ]]
 
@@ -13494,19 +13492,10 @@ local AutoUpdate = {}
 
 -- Configuration
 local NOVA_UPDATE_CONFIG = {
-    -- URL to check for the latest IY version
     VersionUrl = "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/version",
-    
-    -- URL to load the latest NovaYield
     DownloadUrl = "https://raw.githubusercontent.com/justsadnyx-ux/NovaYield/master/novayield-custom.lua",
-    
-    -- Current version of this NovaYield build
     CurrentVersion = "1.0.0",
-    
-    -- How often to check (in seconds, 0 = only on execute)
-    CheckInterval = 3600, -- 1 hour
-    
-    -- Whether to show a notification on startup
+    CheckInterval = 3600,
     NotifyOnStart = true,
 }
 
@@ -13514,44 +13503,36 @@ local NOVA_UPDATE_CONFIG = {
 local hasNotified = false
 local updateAvailable = false
 local latestVersion = nil
-local isChecking = false
 
 -- ============================================================
 -- VERSION CHECKING
 -- ============================================================
 
 function AutoUpdate.CheckForUpdate()
-    if isChecking then return end
-    isChecking = true
-    
-    task.spawn(function()
-        local success, result = pcall(function()
-            local versionJson = game:HttpGet(NOVA_UPDATE_CONFIG.VersionUrl)
-            return HttpService:JSONDecode(versionJson)
-        end)
-        
-        isChecking = false
-        
-        if success and result then
-            latestVersion = result.Version
-            
-            -- Compare versions
-            if result.Version ~= NOVA_UPDATE_CONFIG.CurrentVersion then
-                updateAvailable = true
-                if NOVA_UPDATE_CONFIG.NotifyOnStart and not hasNotified then
-                    hasNotified = true
-                    AutoUpdate.ShowUpdateNotification(result.Version, result.Announcement)
-                end
-            else
-                updateAvailable = false
-            end
-            
-            return true, result
-        else
-            warn("[NovaUpdate] Failed to check for updates:", result)
-            return false, nil
-        end
+    local success, result = pcall(function()
+        local versionJson = game:HttpGet(NOVA_UPDATE_CONFIG.VersionUrl)
+        return HttpService:JSONDecode(versionJson)
     end)
+    
+    if success and result and result.Version then
+        latestVersion = result.Version
+        
+        -- Compare versions (simple string comparison)
+        if result.Version ~= NOVA_UPDATE_CONFIG.CurrentVersion then
+            updateAvailable = true
+            if NOVA_UPDATE_CONFIG.NotifyOnStart and not hasNotified then
+                hasNotified = true
+                AutoUpdate.ShowUpdateNotification(result.Version, result.Announcement)
+            end
+        else
+            updateAvailable = false
+        end
+        
+        return true, result
+    else
+        warn("[NovaUpdate] Failed to check for updates")
+        return false, nil
+    end
 end
 
 -- ============================================================
@@ -13559,12 +13540,18 @@ end
 -- ============================================================
 
 function AutoUpdate.ShowUpdateNotification(version, announcement)
-    -- Create the update notification GUI
+    -- Find or create the parent GUI
+    local parent = gethui and gethui() or game:GetService("CoreGui")
+    
+    -- Remove existing notification if any
+    local existing = parent:FindFirstChild("NovaUpdateNotification")
+    if existing then existing:Destroy() end
+    
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "NovaUpdateNotification"
     screenGui.ResetOnSpawn = false
     screenGui.DisplayOrder = 999999
-    screenGui.Parent = gethui and gethui() or game:GetService("CoreGui")
+    screenGui.Parent = parent
     
     -- Main frame
     local mainFrame = Instance.new("Frame")
@@ -13765,13 +13752,12 @@ function AutoUpdate.PerformUpdate()
     
     task.wait(1)
     
-    -- Load the latest version
     local success, result = pcall(function()
         loadstring(game:HttpGet(NOVA_UPDATE_CONFIG.DownloadUrl))()
     end)
     
     if success then
-        notify("NovaYield", "Update complete! NovaYield has been updated.", 5)
+        notify("NovaYield", "Update complete!", 5)
     else
         notify("NovaYield", "Update failed. Please try again later.", 5)
         warn("[NovaUpdate] Update failed:", result)
@@ -13779,36 +13765,26 @@ function AutoUpdate.PerformUpdate()
 end
 
 -- ============================================================
--- AUTO-CHECK ON STARTUP
+-- START AUTO-UPDATE
 -- ============================================================
 
-function AutoUpdate.Start()
-    -- Check for updates on startup
-    task.spawn(function()
-        task.wait(3) -- Wait for IY to fully load
+-- Check for updates on startup
+task.spawn(function()
+    task.wait(3)
+    AutoUpdate.CheckForUpdate()
+end)
+
+-- Periodic checks
+task.spawn(function()
+    while true do
+        task.wait(NOVA_UPDATE_CONFIG.CheckInterval)
         AutoUpdate.CheckForUpdate()
-    end)
-    
-    -- Periodic checks
-    if NOVA_UPDATE_CONFIG.CheckInterval > 0 then
-        task.spawn(function()
-            while true do
-                task.wait(NOVA_UPDATE_CONFIG.CheckInterval)
-                AutoUpdate.CheckForUpdate()
-            end
-        end)
     end
-end
+end)
 
--- ============================================================
--- MANUAL CHECK COMMAND
--- ============================================================
-
--- Add a command to manually check for updates
+-- Add manual check command
 task.spawn(function()
     task.wait(2)
-    
-    -- Check if addcmd exists (IY is loaded)
     if type(addcmd) == "function" then
         addcmd('novaupdate', {'checkupdate'}, function(args, speaker)
             notify("NovaYield", "Checking for updates...", 2)
@@ -13825,11 +13801,5 @@ task.spawn(function()
         end)
     end
 end)
-
--- ============================================================
--- START AUTO-UPDATE
--- ============================================================
-
-AutoUpdate.Start()
 
 return AutoUpdate
