@@ -13476,3 +13476,360 @@ task.spawn(function()
     notify("NovaYield", "Welcome! Press " .. prefix .. " to open the command bar.\nTheme: Midnight Aurora\nBased on Infinite Yield by Edge // Zwolf // Moon // Toon // Peyton // ATP", 5)
 end)
 
+
+--[[
+    ============================================================
+    NovaYield Auto-Update System
+    ============================================================
+    
+    Checks for updates from the original Infinite Yield source.
+    If a new version is found, notifies the user with options to
+    update now or later.
+    
+    This is a standalone module that can be added to the NovaYield build.
+    ============================================================
+]]
+
+local AutoUpdate = {}
+
+-- Configuration
+local NOVA_UPDATE_CONFIG = {
+    -- URL to check for the latest IY version
+    VersionUrl = "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/version",
+    
+    -- URL to load the latest NovaYield
+    DownloadUrl = "https://raw.githubusercontent.com/justsadnyx-ux/NovaYield/master/novayield-custom.lua",
+    
+    -- Current version of this NovaYield build
+    CurrentVersion = "1.0.0",
+    
+    -- How often to check (in seconds, 0 = only on execute)
+    CheckInterval = 3600, -- 1 hour
+    
+    -- Whether to show a notification on startup
+    NotifyOnStart = true,
+}
+
+-- State
+local hasNotified = false
+local updateAvailable = false
+local latestVersion = nil
+local isChecking = false
+
+-- ============================================================
+-- VERSION CHECKING
+-- ============================================================
+
+function AutoUpdate.CheckForUpdate()
+    if isChecking then return end
+    isChecking = true
+    
+    task.spawn(function()
+        local success, result = pcall(function()
+            local versionJson = game:HttpGet(NOVA_UPDATE_CONFIG.VersionUrl)
+            return HttpService:JSONDecode(versionJson)
+        end)
+        
+        isChecking = false
+        
+        if success and result then
+            latestVersion = result.Version
+            
+            -- Compare versions
+            if result.Version ~= NOVA_UPDATE_CONFIG.CurrentVersion then
+                updateAvailable = true
+                if NOVA_UPDATE_CONFIG.NotifyOnStart and not hasNotified then
+                    hasNotified = true
+                    AutoUpdate.ShowUpdateNotification(result.Version, result.Announcement)
+                end
+            else
+                updateAvailable = false
+            end
+            
+            return true, result
+        else
+            warn("[NovaUpdate] Failed to check for updates:", result)
+            return false, nil
+        end
+    end)
+end
+
+-- ============================================================
+-- UPDATE NOTIFICATION UI
+-- ============================================================
+
+function AutoUpdate.ShowUpdateNotification(version, announcement)
+    -- Create the update notification GUI
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "NovaUpdateNotification"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 999999
+    screenGui.Parent = gethui and gethui() or game:GetService("CoreGui")
+    
+    -- Main frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "UpdateFrame"
+    mainFrame.BackgroundColor3 = Color3.fromRGB(18, 21, 32)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Size = UDim2.new(0, 320, 0, 180)
+    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
+    mainFrame.ZIndex = 10
+    mainFrame.Parent = screenGui
+    
+    -- Accent line at top
+    local topAccent = Instance.new("Frame")
+    topAccent.Name = "TopAccent"
+    topAccent.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    topAccent.BorderSizePixel = 0
+    topAccent.Size = UDim2.new(1, 0, 0, 3)
+    topAccent.ZIndex = 11
+    topAccent.Parent = mainFrame
+    
+    -- Title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.BackgroundColor3 = Color3.fromRGB(28, 32, 48)
+    titleBar.BorderSizePixel = 0
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.ZIndex = 10
+    titleBar.Parent = mainFrame
+    
+    local titleText = Instance.new("TextLabel")
+    titleText.Name = "Title"
+    titleText.BackgroundTransparency = 1
+    titleText.Size = UDim2.new(1, -40, 1, 0)
+    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.Font = Enum.Font.GothamBold
+    titleText.TextSize = 14
+    titleText.Text = "  NovaYield Update Available"
+    titleText.TextColor3 = Color3.fromRGB(240, 245, 255)
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.ZIndex = 10
+    titleText.Parent = titleBar
+    
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "Close"
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -30, 0, 0)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 16
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(240, 245, 255)
+    closeBtn.ZIndex = 10
+    closeBtn.Parent = titleBar
+    
+    -- Content
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.BackgroundTransparency = 1
+    content.Size = UDim2.new(1, -20, 1, -90)
+    content.Position = UDim2.new(0, 10, 0, 40)
+    content.ZIndex = 10
+    content.Parent = mainFrame
+    
+    local messageText = Instance.new("TextLabel")
+    messageText.Name = "Message"
+    messageText.BackgroundTransparency = 1
+    messageText.Size = UDim2.new(1, 0, 0, 50)
+    messageText.Font = Enum.Font.Gotham
+    messageText.TextSize = 13
+    messageText.Text = "A new version of NovaYield is available!\nCurrent: " .. NOVA_UPDATE_CONFIG.CurrentVersion .. "\nLatest: " .. tostring(version)
+    messageText.TextColor3 = Color3.fromRGB(160, 170, 200)
+    messageText.TextXAlignment = Enum.TextXAlignment.Left
+    messageText.TextYAlignment = Enum.TextYAlignment.Top
+    messageText.ZIndex = 10
+    messageText.Parent = content
+    
+    -- Announcement (if any)
+    if announcement and announcement ~= "" then
+        local annText = Instance.new("TextLabel")
+        annText.Name = "Announcement"
+        annText.BackgroundTransparency = 1
+        annText.Size = UDim2.new(1, 0, 0, 40)
+        annText.Position = UDim2.new(0, 0, 0, 50)
+        annText.Font = Enum.Font.GothamItalic
+        annText.TextSize = 12
+        annText.Text = announcement
+        annText.TextColor3 = Color3.fromRGB(100, 110, 140)
+        annText.TextXAlignment = Enum.TextXAlignment.Left
+        annText.TextYAlignment = Enum.TextYAlignment.Top
+        annText.TextWrapped = true
+        annText.ZIndex = 10
+        annText.Parent = content
+    end
+    
+    -- Buttons
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = "Buttons"
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Size = UDim2.new(1, -20, 0, 35)
+    buttonContainer.Position = UDim2.new(0, 10, 1, -45)
+    buttonContainer.ZIndex = 10
+    buttonContainer.Parent = mainFrame
+    
+    -- Update Now button
+    local updateBtn = Instance.new("TextButton")
+    updateBtn.Name = "UpdateNow"
+    updateBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    updateBtn.BorderSizePixel = 0
+    updateBtn.Size = UDim2.new(0, 140, 0, 35)
+    updateBtn.Font = Enum.Font.GothamBold
+    updateBtn.TextSize = 14
+    updateBtn.Text = "Update Now"
+    updateBtn.TextColor3 = Color3.fromRGB(10, 12, 18)
+    updateBtn.ZIndex = 10
+    updateBtn.Parent = buttonContainer
+    
+    -- Later button
+    local laterBtn = Instance.new("TextButton")
+    laterBtn.Name = "Later"
+    laterBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 72)
+    laterBtn.BorderSizePixel = 0
+    laterBtn.Size = UDim2.new(0, 140, 0, 35)
+    laterBtn.Position = UDim2.new(1, -140, 0, 0)
+    laterBtn.Font = Enum.Font.GothamBold
+    laterBtn.TextSize = 14
+    laterBtn.Text = "Later"
+    laterBtn.TextColor3 = Color3.fromRGB(240, 245, 255)
+    laterBtn.ZIndex = 10
+    laterBtn.Parent = buttonContainer
+    
+    -- Button hover effects
+    updateBtn.MouseEnter:Connect(function()
+        updateBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 255)
+    end)
+    updateBtn.MouseLeave:Connect(function()
+        updateBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+    end)
+    
+    laterBtn.MouseEnter:Connect(function()
+        laterBtn.BackgroundColor3 = Color3.fromRGB(58, 66, 96)
+    end)
+    laterBtn.MouseLeave:Connect(function()
+        laterBtn.BackgroundColor3 = Color3.fromRGB(42, 48, 72)
+    end)
+    
+    -- Button actions
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    laterBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    updateBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+        AutoUpdate.PerformUpdate()
+    end)
+    
+    -- Make draggable
+    local dragging = false
+    local dragStart = Vector2.new()
+    local startPos = UDim2.new()
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+        end
+    end)
+    
+    titleBar.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    titleBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    -- Animate in
+    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+    mainFrame:TweenSize(UDim2.new(0, 320, 0, 180), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+end
+
+-- ============================================================
+-- PERFORM UPDATE
+-- ============================================================
+
+function AutoUpdate.PerformUpdate()
+    notify("NovaYield", "Updating to latest version...", 3)
+    
+    task.wait(1)
+    
+    -- Load the latest version
+    local success, result = pcall(function()
+        loadstring(game:HttpGet(NOVA_UPDATE_CONFIG.DownloadUrl))()
+    end)
+    
+    if success then
+        notify("NovaYield", "Update complete! NovaYield has been updated.", 5)
+    else
+        notify("NovaYield", "Update failed. Please try again later.", 5)
+        warn("[NovaUpdate] Update failed:", result)
+    end
+end
+
+-- ============================================================
+-- AUTO-CHECK ON STARTUP
+-- ============================================================
+
+function AutoUpdate.Start()
+    -- Check for updates on startup
+    task.spawn(function()
+        task.wait(3) -- Wait for IY to fully load
+        AutoUpdate.CheckForUpdate()
+    end)
+    
+    -- Periodic checks
+    if NOVA_UPDATE_CONFIG.CheckInterval > 0 then
+        task.spawn(function()
+            while true do
+                task.wait(NOVA_UPDATE_CONFIG.CheckInterval)
+                AutoUpdate.CheckForUpdate()
+            end
+        end)
+    end
+end
+
+-- ============================================================
+-- MANUAL CHECK COMMAND
+-- ============================================================
+
+-- Add a command to manually check for updates
+task.spawn(function()
+    task.wait(2)
+    
+    -- Check if addcmd exists (IY is loaded)
+    if type(addcmd) == "function" then
+        addcmd('novaupdate', {'checkupdate'}, function(args, speaker)
+            notify("NovaYield", "Checking for updates...", 2)
+            local success, result = AutoUpdate.CheckForUpdate()
+            if success and result then
+                if updateAvailable then
+                    notify("NovaYield", "Update available! Latest: " .. tostring(latestVersion), 3)
+                else
+                    notify("NovaYield", "You are on the latest version!", 3)
+                end
+            else
+                notify("NovaYield", "Failed to check for updates.", 3)
+            end
+        end)
+    end
+end)
+
+-- ============================================================
+-- START AUTO-UPDATE
+-- ============================================================
+
+AutoUpdate.Start()
+
+return AutoUpdate
